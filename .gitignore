@@ -1,0 +1,9 @@
+# Node Envoriment Files
+.env
+node_modules/
+
+# Bot Data
+data/
+
+# MacOS Files
+.DS_Store
