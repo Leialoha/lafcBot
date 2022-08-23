@@ -1,20 +1,12 @@
 require('dotenv').config();
-const config = require('./src/utils/config.js');
-const reactions = require('./src/utils/reactions.js');
 const bot = require('./src/bot.js');
 
-config(process.env.CONFIG_FILE);
-config.load();
+if (process.env.TOKEN == null) {
+	console.log('process.env.TOKEN is not set!');
+	process.exit(1);
+} else bot.startup(process.env.TOKEN);
 
-reactions.setFile(process.env.REACTIONS_FILE);
-reactions.load();
-
-bot.startup(process.env.TOKEN);
-
-setInterval(function () {
-	config.save();
-	reactions.save();
-}, 900000)
+bot.getClient().version = '0.0.2';
 
 //
 // Shutdown Events
@@ -34,23 +26,6 @@ const shutdown = (signal) => {
 	setTimeout(function () {
 		bot.shutdown();
 		console.log('Closed!');
-
-        console.log('Saving config...');
-        config.save().then(() => {
-            console.log('Saved config!');
-        }).catch(e => {
-            console.log('Could not save config!');
-            console.error(e);
-        });
-
-		console.log('Saving role reactions...');
-        reactions.save().then(() => {
-            console.log('Saved role reactions!');
-        }).catch(e => {
-            console.log('Could not role reactions!');
-            console.error(e);
-        });
-
 	}, 1000);
 
     setTimeout(function () {

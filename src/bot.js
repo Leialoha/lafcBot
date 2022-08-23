@@ -1,14 +1,20 @@
 const { Client, GatewayIntentBits } = require('discord.js');
 const path = require('path');
-const fs = require('fs');
+const fetchFiles = require('./utils/fetchFiles');
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.DirectMessages, GatewayIntentBits.GuildMessageReactions] });
+const client = new Client({ intents: [
+	GatewayIntentBits.Guilds,
+	GatewayIntentBits.GuildMessageReactions,
+	GatewayIntentBits.GuildScheduledEvents,
+	GatewayIntentBits.GuildMessages,
+	GatewayIntentBits.MessageContent
+] });
 
 //
 // Event handling
 //
 const eventsPath = path.join(__dirname, 'events');
-const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
+const eventFiles = fetchFiles(eventsPath, ['.js'], new RegExp('^-'));
 
 for (const file of eventFiles) {
 	const filePath = path.join(eventsPath, file);

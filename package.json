@@ -5,5 +5,28 @@
     "dotenv": "^16.0.1",
     "emoji-regex": "^10.1.0",
     "node-fetch": "^2.6.7"
-  }
+  },
+  "name": "lafcbot",
+  "version": "0.0.1",
+  "main": "index.js",
+  "devDependencies": {},
+  "scripts": {
+    "start": "node index.js"
+  },
+  "author": "Leialoha",
+  "license": "UNLICENSED",
+  "description": "Yet another multi-purpose bot! This bot was created for **Leadership Assembly for Christ** (<https://discord.gg/FK3upjNjKE>).",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Leialoha/lafcBot.git"
+  },
+  "keywords": [
+    "bot",
+    "discord",
+    "christianity"
+  ],
+  "bugs": {
+    "url": "https://github.com/Leialoha/lafcBot/issues"
+  },
+  "homepage": "https://github.com/Leialoha/lafcBot#readme"
 }
