@@ -1,7 +1,4 @@
-const { REST } = require('@discordjs/rest');
-const { Routes } = require('discord.js');
 const path = require('path');
-// const fs = require('fs');
 const fetchFiles = require('../utils/fetchFiles');
 
 module.exports = {
@@ -17,11 +14,8 @@ module.exports = {
 async function registerCommands(client) {
 	console.log('Started refreshing application (/) commands.');
 
-	const rest = new REST({ version: '10' }).setToken(client.token);
 	const guilds = client.guilds.cache;
-
 	const commandInteractions = [];
-
 	const tempPath = path.join(__dirname, '..', 'rest');
 	const tempFiles = fetchFiles(tempPath, ['.js'], new RegExp('^-'));
 	
@@ -35,14 +29,13 @@ async function registerCommands(client) {
 
 	await guilds.each(async (guild) => {
 		const commands = []
-
 		try {
 			commandInteractions.forEach(cmdInter => {
 				const val = cmdInter.getCommand(client, guild);
 				if (val != null) commands.push(val);
 			});
 
-			await rest.put(Routes.applicationGuildCommands(client.user.id, guild.id), { body: commands });
+			await guild.commands.set(commands);
 		} catch (e) { console.error(e); }
 	});
 
