@@ -5,14 +5,14 @@ module.exports = {
 		// if (guild.id != '1004470728638337034') return null;
 
 		return {
-			name: __filename.split('/').pop().replace(/\.js$/gi, ''),
+			name: __filename.split('/').pop().replace(/\.js$/gi, '').toLowerCase(),
 			description: 'Tic Tac Toe!',
 		}
 	},
 
 	runCommand: async (interaction) => {
 		if (!interaction.isChatInputCommand()) return;
-		if (interaction.commandName != __filename.split('/').pop().replace(/\.js$/gi, '')) return;
+		if (interaction.commandName != __filename.split('/').pop().replace(/\.js$/gi, '').toLowerCase()) return;
 
 		const requiredPermissions = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages];
 

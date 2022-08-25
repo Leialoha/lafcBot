@@ -1,4 +1,4 @@
-const { PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+const { PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, InteractionType } = require("discord.js");
 
 const createdInteractions = []
 
@@ -7,14 +7,14 @@ module.exports = {
 		if (guild.id != '1004470728638337034') return null;
 
 		return {
-			name: __filename.split('/').pop().replace(/\.js$/gi, ''),
+			name: __filename.split('/').pop().replace(/\.js$/gi, '').toLowerCase(),
 			description: 'Edit the reaction roles!',
 		}
 	},
 
 	runCommand: async (interaction) => {
 		if (!interaction.isChatInputCommand()) return;
-		if (interaction.commandName != __filename.split('/').pop().replace(/\.js$/gi, '')) return;
+		if (interaction.commandName != __filename.split('/').pop().replace(/\.js$/gi, '').toLowerCase()) return;
 
 		const requiredPermissions = [PermissionFlagsBits.ManageMessages, PermissionFlagsBits.ViewChannel, PermissionFlagsBits.AddReactions];
 
@@ -59,9 +59,19 @@ module.exports = {
 		const filteredInteractions = createdInteractions.filter(reactInter => reactInter.checkMessage(interaction.message));
 		
 		if (filteredInteractions.length == 0) return;
-		interaction.deferUpdate();
 
-		if (filteredInteractions[0].checkUser(interaction.user)) filteredInteractions[0].updateInteraction(interaction.customId.replace(/react\-/gi, ''));
+		if (filteredInteractions[0].checkUser(interaction.user)) filteredInteractions[0].updateInteraction(interaction.customId.replace(/react\-/gi, ''), interaction);
+		else interaction.deferUpdate();
+	},
+
+	runModal: async (interaction) => {
+		if (interaction.type != InteractionType.ModalSubmit) return;
+		const filteredInteractions = createdInteractions.filter(reactInter => reactInter.checkMessage(interaction.message));
+		
+		if (filteredInteractions.length == 0) return;
+
+		if (filteredInteractions[0].checkUser(interaction.user)) filteredInteractions[0].updateInteraction(interaction.customId.replace(/react\-/gi, ''), interaction);
+		else interaction.deferUpdate();
 	}
 }
 
@@ -71,7 +81,7 @@ function reactionInteraction(interaction, message, validUntil) {
 	this.validUntil = validUntil;
 	this.menuId = 'main';
 
-	this.collector = null;
+	this.values = {};
 
 	this.checkMessage = (message) => {
 		return this.messageId == message.id;
@@ -81,7 +91,7 @@ function reactionInteraction(interaction, message, validUntil) {
 		return this.interaction.user.id == user.id;
 	}
 
-	this.updateInteraction = async (buttonId) => {
+	this.updateInteraction = async (buttonId, buttonOrModalInteraction) => {
 		switch (buttonId) {
 			case 'mlist': this.menuId = 'list'; break;
 			case 'mcreate': this.menuId = 'create'; break;
@@ -97,19 +107,18 @@ function reactionInteraction(interaction, message, validUntil) {
 			case 'cback': this.menuId = 'create'; break;
 			case 'eback': this.menuId = 'edit'; break;
 			case 'dback': this.menuId = 'delete'; break;
-			case 'cancel':
-				await this.interaction.deleteReply();
-				return;
+			case 'cancel': await this.interaction.deleteReply(); return;
+			case 'modaledit': await buttonOrModalInteraction.showModal(this.lastModal); return;
+			case 'modal': buttonOrModalInteraction.fields.fields.map(field => [field.customId, field.value]).forEach(field => {this.values[field[0]] = field[1]}); break;
 		}
 
-		this.renderMenu();
+		this.renderMenu(buttonOrModalInteraction);
 	}
 
-	this.renderMenu = async () => {
-		if (this.collector != null && !this.collector.ended) this.collector.end()
-
+	this.renderMenu = async (buttonInteraction) => {
 		let embeds = []
 		let components = []
+		let fetchReplyMsg = {};
 
 		let timeLeft = Math.floor(this.validUntil.getTime() / 1000);
 		let awaitMessage = false;
@@ -179,93 +188,127 @@ function reactionInteraction(interaction, message, validUntil) {
 			case 'create-group':
 				embeds.push(new EmbedBuilder()
 					.setTitle('Reaction Roles')
-					.setDescription(`*This interaction will expire <t:${timeLeft}:R>.*\n\nWhat will be the \`group id\`?\n*The group id is what you will refer to when making future interactions.*\n\nPlease type in chat for this question.`));
+					.setDescription(`*This interaction will expire <t:${timeLeft}:R>.*\n\nYou are going to create a group.\n\nValues:\n${this.values['group-id'] == null ? '❌' : '✅' } \`GROUP ID\` is \`${this.values['group-id'] != null ? `${this.values['group-id']}` : '**NOT SET**'}\`\n\n*The group id is what you will refer to when making future interactions.*`));
 
 				components.push(new ActionRowBuilder()
 					.addComponents(
+						new ButtonBuilder().setCustomId('react-continue').setEmoji('✅').setLabel('Continue').setStyle(ButtonStyle.Success).setDisabled(this.values['group-id'] == null),
+						new ButtonBuilder().setCustomId('react-modaledit').setEmoji('🛠️').setLabel('Edit Values').setStyle(ButtonStyle.Secondary),
 						new ButtonBuilder().setCustomId('react-cback').setEmoji('📂').setLabel('Back').setStyle(ButtonStyle.Secondary),
 					));
+
+				fetchReplyMsg['group-id'] = {limit: 20, title: 'What is the new group id?'};
+				// fetchReplyMsg['role-id'] = {limit: 20, title: 'What is the role id or role name?'};
 
 				awaitMessage = true;
 				break;
 			case 'create-role':
 				embeds.push(new EmbedBuilder()
 					.setTitle('Reaction Roles')
-					.setDescription(`*This interaction will expire <t:${timeLeft}:R>.*\n\nWhich group do you want to edit?\nPlease provide the \`group id\`!\n\nPlease type in chat for this question.`));
+					.setDescription(`*This interaction will expire <t:${timeLeft}:R>.*\n\nYou are going to create a role.\n\nValues:\n${this.values['group-id'] == null ? '❌' : '✅' } \`GROUP ID\` is \`${this.values['group-id'] != null ? `${this.values['group-id']}` : '**NOT SET**'}\`\n${this.values['role-id'] == null ? '❌' : '✅' } \`ROLE\` is \`${this.values['role-id'] != null ? `${this.values['role-id']}` : '**NOT SET**'}\``));
 
 				components.push(new ActionRowBuilder()
 					.addComponents(
+						new ButtonBuilder().setCustomId('react-continue').setEmoji('✅').setLabel('Continue').setStyle(ButtonStyle.Success).setDisabled(this.values['group-id'] == null && this.values['role-id'] == null),
+						new ButtonBuilder().setCustomId('react-modaledit').setEmoji('🛠️').setLabel('Edit Values').setStyle(ButtonStyle.Secondary),
 						new ButtonBuilder().setCustomId('react-cback').setEmoji('📂').setLabel('Back').setStyle(ButtonStyle.Secondary),
 					));
+
+				fetchReplyMsg['group-id'] = {limit: 20, title: 'What is the group id?'};
+				fetchReplyMsg['role-id'] = {limit: 20, title: 'What is the role name / id?'};
 
 				awaitMessage = true;
 				break;
 			case 'edit-group':
 				embeds.push(new EmbedBuilder()
 					.setTitle('Reaction Roles')
-					.setDescription(`*This interaction will expire <t:${timeLeft}:R>.*\n\nWhich group do you want to edit?\nPlease provide the \`group id\`!\n\nPlease type in chat for this question.`));
+					.setDescription(`*This interaction will expire <t:${timeLeft}:R>.*\n\nYou are going to edit a group.\n\nValues:\n${this.values['group-id'] == null ? '❌' : '✅' } \`GROUP ID\` is \`${this.values['group-id'] != null ? `${this.values['group-id']}` : '**NOT SET**'}\``));
 
 				components.push(new ActionRowBuilder()
 					.addComponents(
+						new ButtonBuilder().setCustomId('react-continue').setEmoji('✅').setLabel('Continue').setStyle(ButtonStyle.Success).setDisabled(this.values['group-id'] == null),
+						new ButtonBuilder().setCustomId('react-modaledit').setEmoji('🛠️').setLabel('Edit Values').setStyle(ButtonStyle.Secondary),
 						new ButtonBuilder().setCustomId('react-eback').setEmoji('📂').setLabel('Back').setStyle(ButtonStyle.Secondary),
 					));
+
+				fetchReplyMsg['group-id'] = {limit: 20, title: 'What is the group id?'};
+				// fetchReplyMsg['role-id'] = {limit: 20, title: 'What is the role id or role name?'};
 
 				awaitMessage = true;
 				break;
 			case 'edit-role':
 				embeds.push(new EmbedBuilder()
 					.setTitle('Reaction Roles')
-					.setDescription(`*This interaction will expire <t:${timeLeft}:R>.*\n\nWhich group do you want to edit?\nPlease provide the \`group id\`!\n\nPlease type in chat for this question.`));
+					.setDescription(`*This interaction will expire <t:${timeLeft}:R>.*\n\nYou are going to edit a role.\n\nValues:\n${this.values['group-id'] == null ? '❌' : '✅' } \`GROUP ID\` is \`${this.values['group-id'] != null ? `${this.values['group-id']}` : '**NOT SET**'}\`\n${this.values['role-id'] == null ? '❌' : '✅' } \`ROLE\` is \`${this.values['role-id'] != null ? `${this.values['role-id']}` : '**NOT SET**'}\``));
 
 				components.push(new ActionRowBuilder()
 					.addComponents(
+						new ButtonBuilder().setCustomId('react-continue').setEmoji('✅').setLabel('Continue').setStyle(ButtonStyle.Success).setDisabled(this.values['group-id'] == null && this.values['role-id'] == null),
+						new ButtonBuilder().setCustomId('react-modaledit').setEmoji('🛠️').setLabel('Edit Values').setStyle(ButtonStyle.Secondary),
 						new ButtonBuilder().setCustomId('react-eback').setEmoji('📂').setLabel('Back').setStyle(ButtonStyle.Secondary),
 					));
+
+				fetchReplyMsg['group-id'] = {limit: 20, title: 'What is the group id?'};
+				fetchReplyMsg['role-id'] = {limit: 20, title: 'What is the role name / id?'};
 
 				awaitMessage = true;
 				break;
 			case 'delete-group':
 				embeds.push(new EmbedBuilder()
 					.setTitle('Reaction Roles')
-					.setDescription(`*This interaction will expire <t:${timeLeft}:R>.*\n\nWhich group do you want to delete?\nPlease provide the \`group id\`!\n\nPlease type in chat for this question.`));
+					.setDescription(`*This interaction will expire <t:${timeLeft}:R>.*\n\nYou are going to delete a group.\n\nValues:\n${this.values['group-id'] == null ? '❌' : '✅' } \`GROUP ID\` is \`${this.values['group-id'] != null ? `${this.values['group-id']}` : '**NOT SET**'}\``));
 
 				components.push(new ActionRowBuilder()
 					.addComponents(
+						new ButtonBuilder().setCustomId('react-continue').setEmoji('✅').setLabel('Continue').setStyle(ButtonStyle.Success).setDisabled(this.values['group-id'] == null),
+						new ButtonBuilder().setCustomId('react-modaledit').setEmoji('🛠️').setLabel('Edit Values').setStyle(ButtonStyle.Secondary),
 						new ButtonBuilder().setCustomId('react-dback').setEmoji('📂').setLabel('Back').setStyle(ButtonStyle.Secondary),
 					));
+
+				fetchReplyMsg['group-id'] = {limit: 20, title: 'What is the group id you want to delete?'};
+				// fetchReplyMsg['role-id'] = {limit: 20, title: 'What is the role id or role name?'};
 
 				awaitMessage = true;
 				break;
 			case 'delete-role':
 				embeds.push(new EmbedBuilder()
 					.setTitle('Reaction Roles')
-					.setDescription(`*This interaction will expire <t:${timeLeft}:R>.*\n\nWhich group do you want to edit?\nPlease provide the \`group id\`!\n\nPlease type in chat for this question.`));
+					.setDescription(`*This interaction will expire <t:${timeLeft}:R>.*\n\nYou are going to delete a role.\n\nValues:\n${this.values['group-id'] == null ? '❌' : '✅' } \`GROUP ID\` is \`${this.values['group-id'] != null ? `${this.values['group-id']}` : '**NOT SET**'}\`\n${this.values['role-id'] == null ? '❌' : '✅' } \`ROLE\` is \`${this.values['role-id'] != null ? `${this.values['role-id']}` : '**NOT SET**'}\``));
 
 				components.push(new ActionRowBuilder()
 					.addComponents(
+						new ButtonBuilder().setCustomId('react-continue').setEmoji('✅').setLabel('Continue').setStyle(ButtonStyle.Success).setDisabled(this.values['group-id'] == null && this.values['role-id'] == null),
+						new ButtonBuilder().setCustomId('react-modaledit').setEmoji('🛠️').setLabel('Edit Values').setStyle(ButtonStyle.Secondary),
 						new ButtonBuilder().setCustomId('react-dback').setEmoji('📂').setLabel('Back').setStyle(ButtonStyle.Secondary),
 					));
+
+				fetchReplyMsg['group-id'] = {limit: 20, title: 'What is the group id?'};
+				fetchReplyMsg['role-id'] = {limit: 20, title: 'What is the role name / id you want to delete?'};
 
 				awaitMessage = true;
 				break;
 		}
 
-		this.interaction.editReply({ embeds, components })
-			.then(() => {
-				if (!awaitMessage) return;
+		if (awaitMessage) {
+			const name = __filename.split('/').pop().replace(/\.js$/gi, '').toLowerCase().split('');
+			name.splice(0, 0, name.shift().toUpperCase());
 
-				this.fetchReply();
-			});
-	}
+			this.lastModal = new ModalBuilder()
+    			.setCustomId('react-modal')
+    			.setTitle(`${name.join('')} - Modal`);
 
-	this.fetchReply = () => {
-		let filter = (message) => this.checkUser(message.author);
-		let time = (Math.floor(this.validUntil.getTime() / 1000) - Math.floor((new Date()).getTime() / 1000)) * 1000;
+			this.lastModal.addComponents(Object.entries(fetchReplyMsg).map(value => new ActionRowBuilder()
+				.addComponents(new TextInputBuilder()
+					.setCustomId(`${value[0].toLowerCase().replace(/ +/gi, '-')}`)
+					.setLabel(value[1].title)
+					.setMinLength(5)
+					.setMaxLength(value[1].limit)
+					.setStyle(1)
+					.setRequired(true)
+				)));
+		}
 
-		this.collector = this.interaction.channel.createMessageCollector({ filter, time, max: 1 });
-		this.collector.on('collect', (message) => {
-			let cnt = message.content;
-			message.delete();
-		});
+		await buttonInteraction.deferUpdate();
+		this.interaction.editReply({ embeds, components });
 	}
 }

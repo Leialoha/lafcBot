@@ -2,6 +2,9 @@
 .env
 node_modules/
 
+# Beta Files
+src/beta/
+
 # Bot Data
 data/
 

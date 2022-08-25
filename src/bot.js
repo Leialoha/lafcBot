@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits } = require('discord.js');
+const { Client, Collection, GatewayIntentBits } = require('discord.js');
 const path = require('path');
 const fetchFiles = require('./utils/fetchFiles');
 
@@ -9,6 +9,11 @@ const client = new Client({ intents: [
 	GatewayIntentBits.GuildMessages,
 	GatewayIntentBits.MessageContent
 ] });
+
+client.slashCommands = new Collection();
+client.messageMenus = new Collection();
+client.buttons = new Collection();
+client.modals = new Collection();
 
 //
 // Event handling
@@ -43,4 +48,17 @@ module.exports.shutdown = () => {
 
 module.exports.getClient = function () {
 	return client
+}
+
+//
+// Setting Prototypes
+//
+
+if (!String.prototype.format) {
+	String.prototype.format = function() {
+		var args = arguments;
+		return this.replace(/{(\d+)}/g, function(match, number) { 
+			return typeof args[number] != 'undefined' ? args[number] : match;
+		});
+	};
 }
